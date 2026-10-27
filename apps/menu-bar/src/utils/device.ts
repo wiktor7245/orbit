@@ -58,16 +58,16 @@ export function getSectionsFromDeviceList(
 >[] {
   const sections = [
     {
-      data: Array.from(devicesPerPlatform.ios.devices.values()),
-      key: 'ios',
-      label: 'iOS',
-      error: devicesPerPlatform.ios.error,
-    },
-    {
       data: Array.from(devicesPerPlatform.android.devices.values()),
       key: 'android',
       label: 'Android',
       error: devicesPerPlatform.android.error,
+    },
+    {
+      data: Array.from(devicesPerPlatform.ios.devices.values()),
+      key: 'ios',
+      label: 'iOS',
+      error: devicesPerPlatform.ios.error,
     },
     {
       data: Array.from(devicesPerPlatform.tvos.devices.values()),
