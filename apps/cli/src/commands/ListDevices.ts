@@ -93,16 +93,37 @@ export async function listDevicesAsync<P extends Platform>({
   if (listAndroid) {
     tasks.push(
       (async () => {
+        // The AVD list comes from the `emulator` binary and doesn't need adb, so fetch it on its
+        // own: when adb fails we still show the emulators (as shut down) together with the error.
+        const [runningDevicesResult, availableEmulators] = await Promise.all([
+          Emulator.getRunningDevicesAsync().then(
+            (devices) => ({ devices, error: undefined }),
+            (error: unknown) => ({ devices: [], error })
+          ),
+          Emulator.getAvailableAndroidEmulatorsAsync(),
+        ]);
+        const runningDevicesError = runningDevicesResult.error;
+        if (runningDevicesError) {
+          console.warn('Unable to get running Android devices', runningDevicesError);
+          if (runningDevicesError instanceof Error) {
+            result.android.error = {
+              code:
+                runningDevicesError instanceof InternalError
+                  ? runningDevicesError.code
+                  : 'UNKNOWN_ERROR',
+              message: runningDevicesError.message,
+            };
+          }
+        }
+
         try {
-          const runningDevices = await Emulator.getRunningDevicesAsync();
+          const runningDevices = runningDevicesResult.devices;
 
           result.android.devices = result.android.devices.concat(
             runningDevices.filter((r) => r.deviceType === 'device')
           );
 
-          const androidEmulators = (
-            (await Emulator.getAvailableAndroidEmulatorsAsync()) || []
-          )?.map((emulator) => {
+          const androidEmulators = (availableEmulators || []).map((emulator) => {
             const runningEmulator = runningDevices.find(
               (r) => r.deviceType === 'emulator' && r.name === emulator.name
             );

@@ -110,7 +110,11 @@ class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
 #endif
   }
 
-  override func customize(_ rootView: RCTRootView) {
-    rootView.backgroundColor = NSColor.clear
+  // ExpoReactNativeFactoryDelegate overrides this with a plain NSView parameter. On the new
+  // architecture the root view is an RCTSurfaceHostingProxyRootView (not an RCTRootView), which
+  // defaults to a white background, so clear it through their common RCTUIView base class.
+  override func customize(_ rootView: NSView) {
+    super.customize(rootView)
+    (rootView as? RCTUIView)?.backgroundColor = NSColor.clear
   }
 }

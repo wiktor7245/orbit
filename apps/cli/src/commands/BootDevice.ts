@@ -5,9 +5,10 @@ type BootDeviceAsyncOptions = {
   platform: 'android' | 'ios';
   id: string;
   audio?: boolean;
+  coldBoot?: boolean;
 };
 
-export async function bootDeviceAsync({ platform, id, audio }: BootDeviceAsyncOptions) {
+export async function bootDeviceAsync({ platform, id, audio, coldBoot }: BootDeviceAsyncOptions) {
   if (platform === 'ios') {
     await Simulator.ensureSimulatorBootedAsync({
       udid: id,
@@ -25,6 +26,6 @@ export async function bootDeviceAsync({ platform, id, audio }: BootDeviceAsyncOp
     {
       name: id,
     } as AndroidEmulator,
-    { audio }
+    { audio, coldBoot }
   );
 }

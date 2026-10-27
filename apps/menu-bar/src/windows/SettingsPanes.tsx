@@ -345,6 +345,14 @@ export function SettingsPane({ pane }: { pane: Pane }) {
     });
   };
 
+  const onPressEmulatorColdBoot = async (value: boolean) => {
+    setUserPreferences((prev) => {
+      const newPreferences = { ...prev, emulatorColdBoot: value };
+      saveUserPreferences(newPreferences);
+      return newPreferences;
+    });
+  };
+
   const toggleCustomSdkPath = (value: boolean) => {
     setCustomSdkPathEnabled(value);
     if (!value) {
@@ -694,6 +702,15 @@ export function SettingsPane({ pane }: { pane: Pane }) {
                   <Switch
                     value={userPreferences.emulatorWithoutAudio}
                     onValueChange={onPressEmulatorWithoutAudio}
+                  />
+                </SettingRow>
+                <Divider />
+                <SettingRow
+                  title="Cold boot emulator"
+                  subtitle="Ignore the quick-boot snapshot and do a full boot">
+                  <Switch
+                    value={userPreferences.emulatorColdBoot}
+                    onValueChange={onPressEmulatorColdBoot}
                   />
                 </SettingRow>
                 <Divider />

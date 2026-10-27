@@ -109,36 +109,57 @@ public class MenuBarModule: Module {
 
       let file = pipe.fileHandleForReading
       var accumulatedOutput = ""
+      // Bytes read so far that don't end with a newline yet. A pipe read can stop in the middle of
+      // a line (or a multi-byte character), so only complete lines are decoded and forwarded.
+      var pendingData = Data()
+      // The readability and termination handlers run on different queues.
+      let outputQueue = DispatchQueue(label: "dev.expo.orbit.cli-output")
 
-      file.readabilityHandler = { [weak self] handle in
-        guard let self else {
-          return
+      let consume = { [weak self] (data: Data, isFinal: Bool) in
+        pendingData.append(data)
+
+        var lines: [Data] = []
+        while let newlineIndex = pendingData.firstIndex(of: UInt8(ascii: "\n")) {
+          lines.append(pendingData[pendingData.startIndex..<newlineIndex])
+          pendingData = Data(pendingData[pendingData.index(after: newlineIndex)...])
+        }
+        if isFinal && !pendingData.isEmpty {
+          lines.append(pendingData)
+          pendingData = Data()
         }
 
-        let availableData = handle.availableData
-        let wholeOutput = String(data: availableData, encoding: .utf8)
-        guard let outputs = wholeOutput?.components(separatedBy: .newlines) else {
-          return
-        }
-
-        for output in outputs {
+        for lineData in lines {
+          let output = String(decoding: lineData, as: UTF8.self)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\r"))
           if output.isEmpty {
             continue
           }
           accumulatedOutput.append(output + "\n")
 
-          if hasListeners && !output.isEmpty && output != "\n"
-              && !isCliOutputMarker(output) {
+          if let self, self.hasListeners && !isCliOutputMarker(output) {
             let eventData = ["listenerId": listenerId, "output": output]
-            sendEvent(onCLIOutput, eventData)
+            self.sendEvent(onCLIOutput, eventData)
           }
+        }
+      }
+
+      file.readabilityHandler = { handle in
+        let availableData = handle.availableData
+        outputQueue.sync {
+          consume(availableData, false)
         }
       }
 
       task.terminationHandler = { task in
         file.readabilityHandler = nil
 
-        let result = parseCliOutput(accumulatedOutput)
+        // The process can exit before the readability handler has seen all of its output,
+        // which used to truncate the JSON result. Drain whatever is left in the pipe.
+        let remainingData = file.readDataToEndOfFile()
+        let result = outputQueue.sync { () -> CLIOutputResult in
+          consume(remainingData, true)
+          return parseCliOutput(accumulatedOutput)
+        }
 
         if let error = result.error {
           promise.reject(CLIOutputError(error))

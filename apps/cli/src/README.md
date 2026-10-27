@@ -68,7 +68,7 @@ expo-orbit-cli list-devices [--platform <platform>]
 ### boot-device
 
 ```bash
-expo-orbit-cli boot-device --platform <platform> --id <device-id> [--no-audio]
+expo-orbit-cli boot-device --platform <platform> --id <device-id> [--no-audio] [--cold-boot]
 ```
 
 - **Options**
@@ -78,6 +78,8 @@ expo-orbit-cli boot-device --platform <platform> --id <device-id> [--no-audio]
   : UDID or name of the device to boot.
   `--no-audio`
   : (Android only) Launch the emulator with audio muted.
+  `--cold-boot`
+  : (Android only) Do a full boot, ignoring the emulator's quick-boot snapshot.
 
 - **Description**
   Boots (or restarts) the specified simulator/emulator.

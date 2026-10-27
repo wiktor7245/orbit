@@ -9,10 +9,33 @@ import { sleepAsync } from '../../utils/promise';
 
 const BEGINNING_OF_ADB_ERROR_MESSAGE = 'error: ';
 
+/**
+ * Errors printed when several adb clients race to start the daemon at once (e.g. the menu bar
+ * refreshing the device list while another command is running). The command never reached the
+ * daemon, so it is safe to retry once the winning client has finished starting it.
+ */
+function isAdbServerStartupError(error: any): boolean {
+  const message = `${error?.stderr ?? ''}\n${error?.stdout ?? ''}`;
+  return /daemon not running|didn't ACK|failed to start daemon|cannot connect to daemon|smartsocket/i.test(
+    message
+  );
+}
+
+const ADB_SERVER_STARTUP_RETRIES = 4;
+
 export async function adbAsync(...args: string[]): Promise<SpawnResult> {
   const adbExecutable = await getAdbExecutableAsync();
   try {
-    return await spawnAsync(adbExecutable, args);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await spawnAsync(adbExecutable, args);
+      } catch (error: any) {
+        if (attempt >= ADB_SERVER_STARTUP_RETRIES || !isAdbServerStartupError(error)) {
+          throw error;
+        }
+        await sleepAsync(500 * (attempt + 1));
+      }
+    }
   } catch (error: any) {
     if (error.code === 'ENOENT') {
       throw new Error(
@@ -200,6 +223,33 @@ export async function getAdbNameForEmulatorIdAsync(emulatorPid: string): Promise
   return sanitizeAdbDeviceName(stdout) ?? null;
 }
 
+/**
+ * Resolve the AVD name of a running emulator without ever throwing. The emulator console
+ * (`adb emu avd name`) is the most reliable source, but it can fail while the emulator is still
+ * booting or when the console auth token is missing, so fall back to the system properties the
+ * emulator sets on the guest.
+ */
+async function resolveEmulatorAvdNameAsync(emulatorPid: string): Promise<string | null> {
+  try {
+    const name = await getAdbNameForEmulatorIdAsync(emulatorPid);
+    if (name && !/^(KO|error)\b/i.test(name)) {
+      return name;
+    }
+  } catch {}
+
+  for (const prop of ['ro.boot.qemu.avd_name', 'ro.kernel.qemu.avd_name']) {
+    try {
+      const { stdout } = await adbAsync('-s', emulatorPid, 'shell', 'getprop', prop);
+      const name = sanitizeAdbDeviceName(stdout);
+      if (name) {
+        return name;
+      }
+    } catch {}
+  }
+
+  return null;
+}
+
 // TODO: This is very expensive for some operations.
 export async function getRunningDevicesAsync(): Promise<
   (AndroidConnectedDevice | AndroidEmulator)[]
@@ -247,7 +297,8 @@ export async function getRunningDevicesAsync(): Promise<
   const devicePromises = attachedDevices.map(async (device) => {
     let name = 'model' in device ? device.model : '';
     if (device.deviceType === 'emulator' && device.pid) {
-      name = (await getAdbNameForEmulatorIdAsync(device.pid)) ?? name;
+      // A single emulator that can't be resolved must not take down the whole device list.
+      name = (await resolveEmulatorAvdNameAsync(device.pid)) ?? name;
     }
 
     const result: AndroidConnectedDevice | AndroidEmulator = {
@@ -294,16 +345,25 @@ export async function isEmulatorBootedAsync(emulatorPid: string): Promise<boolea
 
 export async function waitForEmulatorToBeBootedAsync(
   maxWaitTimeMs: number,
-  intervalMs: number
+  intervalMs: number,
+  /** AVD name to wait for. Without it, any other emulator that is already running would match. */
+  emulatorName?: string
 ): Promise<AndroidEmulator> {
   Log.newLine();
   Log.log('Waiting for the Android emulator to start...');
 
   const startTime = Date.now();
   while (Date.now() - startTime < maxWaitTimeMs) {
-    const emulator = await getFirstRunningEmulatorAsync();
-    if (emulator?.pid && (await isEmulatorBootedAsync(emulator.pid))) {
-      return emulator;
+    try {
+      const emulators = (await getRunningDevicesAsync()).filter(isAndroidEmulator);
+      const emulator = emulatorName
+        ? emulators.find(({ name }) => name === emulatorName)
+        : emulators[0];
+      if (emulator?.pid && (await isEmulatorBootedAsync(emulator.pid))) {
+        return emulator;
+      }
+    } catch {
+      // adb is often briefly unavailable while a new emulator registers itself; keep waiting.
     }
     await sleepAsync(intervalMs);
   }

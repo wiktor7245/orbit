@@ -85,20 +85,26 @@ export async function bootEmulatorAsync(
     timeout = EMULATOR_MAX_WAIT_TIMEOUT_MS,
     interval = 1000,
     audio = true,
+    coldBoot = false,
   }: {
     /** Time in milliseconds to wait before asserting a timeout error. */
     timeout?: number;
     interval?: number;
     audio?: boolean;
+    /** Ignore the quick-boot snapshot and do a full boot. */
+    coldBoot?: boolean;
   } = {}
 ): Promise<AndroidEmulator> {
   Log.newLine();
-  Log.log(`Opening emulator ${chalk.bold(emulator.name)}`);
+  Log.log(`Opening emulator ${chalk.bold(emulator.name)}${coldBoot ? ' (cold boot)' : ''}`);
 
   const emulatorExecutable = await getEmulatorExecutableAsync();
   const spawnArgs = [`@${emulator.name}`];
   if (!audio) {
     spawnArgs.push('-no-audio');
+  }
+  if (coldBoot) {
+    spawnArgs.push('-no-snapshot-load');
   }
 
   // Start a process to open an emulator
@@ -112,7 +118,7 @@ export async function bootEmulatorAsync(
   // https://github.com/expo/eas-cli/pull/1485#discussion_r1007935871
   emulatorProcess.child.unref();
 
-  return await waitForEmulatorToBeBootedAsync(timeout, interval);
+  return await waitForEmulatorToBeBootedAsync(timeout, interval, emulator.name);
 }
 
 export async function ensureEmulatorBootedAsync(

@@ -125,7 +125,7 @@ function Core(props: Props) {
       refetch();
     }, [refetch])
   );
-  const { emulatorWithoutAudio } = useDeviceAudioPreferences();
+  const { emulatorWithoutAudio, emulatorColdBoot } = useDeviceAudioPreferences();
 
   const { attention } = useResignedAppRenewals({ createTask, updateTask, deleteTask });
 
@@ -228,9 +228,10 @@ function Core(props: Props) {
         platform: getDeviceOS(device),
         id: deviceId,
         audio: !emulatorWithoutAudio,
+        coldBoot: emulatorColdBoot,
       });
     },
-    [emulatorWithoutAudio]
+    [emulatorWithoutAudio, emulatorColdBoot]
   );
 
   const getDeviceByPlatform = useCallback(
@@ -928,7 +929,12 @@ function Core(props: Props) {
                   onPress={() => onSelectDevice(device)}
                   onPressLaunch={async () => {
                     Analytics.track(Event.LAUNCH_SIMULATOR);
-                    await bootDeviceAsync({ platform, id, audio: !emulatorWithoutAudio });
+                    await bootDeviceAsync({
+                      platform,
+                      id,
+                      audio: !emulatorWithoutAudio,
+                      coldBoot: emulatorColdBoot,
+                    });
                     refetch();
                   }}
                   selected={selectedDevicesIds[platform] === id}

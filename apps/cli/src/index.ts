@@ -35,6 +35,7 @@ program
   .requiredOption('-p, --platform <string>', 'Selected platform')
   .requiredOption('--id  <string>', 'UDID or name of the device')
   .option('--no-audio', 'Launch Android emulator without audio')
+  .option('--cold-boot', 'Cold boot Android emulator, ignoring its quick-boot snapshot')
   .action(async (...args) => {
     const { bootDeviceAsync } = await import('./commands/BootDevice');
     return returnLoggerMiddleware(bootDeviceAsync)(...args);

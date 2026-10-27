@@ -6,11 +6,16 @@ export const useDeviceAudioPreferences = () => {
   const [isEmulatorWithoutAudio, setEmulatorWithoutAudio] = useState<boolean>(
     getUserPreferences().emulatorWithoutAudio
   );
+  const [isEmulatorColdBoot, setEmulatorColdBoot] = useState<boolean>(
+    getUserPreferences().emulatorColdBoot
+  );
 
   useEffect(() => {
     const listener = storage.addOnValueChangedListener((key) => {
       if (key === userPreferencesStorageKey) {
-        setEmulatorWithoutAudio(getUserPreferences().emulatorWithoutAudio);
+        const preferences = getUserPreferences();
+        setEmulatorWithoutAudio(preferences.emulatorWithoutAudio);
+        setEmulatorColdBoot(preferences.emulatorColdBoot);
       }
     });
 
@@ -21,5 +26,6 @@ export const useDeviceAudioPreferences = () => {
 
   return {
     emulatorWithoutAudio: isEmulatorWithoutAudio,
+    emulatorColdBoot: isEmulatorColdBoot,
   };
 };

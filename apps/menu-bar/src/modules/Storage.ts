@@ -12,6 +12,7 @@ export const sessionSecretStorageKey = 'sessionSecret';
 export type UserPreferences = {
   launchOnLogin: boolean;
   emulatorWithoutAudio: boolean;
+  emulatorColdBoot: boolean;
   customSdkPath?: string;
   showIosSimulators: boolean;
   showTvosSimulators: boolean;
@@ -23,6 +24,7 @@ export type UserPreferences = {
 export const defaultUserPreferences: UserPreferences = {
   launchOnLogin: false,
   emulatorWithoutAudio: false,
+  emulatorColdBoot: false,
   // Re-sign free-Apple-ID apps automatically before their 7-day profile
   // expires. On by default: renewing touches no device until it reconnects,
   // and signing in was an explicit user action.

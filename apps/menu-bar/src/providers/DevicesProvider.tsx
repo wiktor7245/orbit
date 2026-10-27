@@ -1,5 +1,5 @@
 import { CliCommands } from 'common-types';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { listDevicesAsync } from '../commands/listDevicesAsync';
 import { getUserPreferences } from '../modules/Storage';
@@ -45,7 +45,7 @@ export function DevicesProvider({ children }: { children: React.ReactNode }) {
     alwaysShowAndroid: showAndroidEmulators,
   });
 
-  const updateDevicesList = useCallback(async () => {
+  const fetchDevicesList = useCallback(async () => {
     const {
       showIosSimulators: showIos,
       showTvosSimulators: showTvos,
@@ -127,6 +127,28 @@ export function DevicesProvider({ children }: { children: React.ReactNode }) {
       setError(err as Error);
     }
   }, []);
+
+  // Refetches are triggered from several places (popover focus, after booting a device, ...).
+  // Running them concurrently spawns several adb clients at once, which race to start the adb
+  // server and fail, so run them one at a time. A refetch requested while one is in flight is
+  // queued (at most one) so that it still reflects changes made after the first one started.
+  const inFlightRequest = useRef<Promise<void> | null>(null);
+  const queuedRequest = useRef<Promise<void> | null>(null);
+  const updateDevicesList = useCallback((): Promise<void> => {
+    if (!inFlightRequest.current) {
+      inFlightRequest.current = fetchDevicesList().finally(() => {
+        inFlightRequest.current = null;
+      });
+      return inFlightRequest.current;
+    }
+    if (!queuedRequest.current) {
+      queuedRequest.current = inFlightRequest.current.then(() => {
+        queuedRequest.current = null;
+        return updateDevicesList();
+      });
+    }
+    return queuedRequest.current;
+  }, [fetchDevicesList]);
 
   useEffect(() => {
     updateDevicesList().finally(() => setHasInitialized(true));
